@@ -1,4 +1,4 @@
-# PrintBiz AI
+# Stationary Hub
 
 A runnable full-stack starter for a stationery, document-processing, printing and T-shirt business.
 
@@ -10,7 +10,7 @@ A runnable full-stack starter for a stationery, document-processing, printing an
 - Admin-managed staff accounts and per-role API permissions
 - Customer print-file requests, T-shirt quote approval, document uploads and private history
 - Staff print-job queue with step-by-step production statuses and T-shirt quoting/production workflow
-- Customer-visible job timelines and in-app progress updates for print, document and T-shirt jobs
+- Customer-visible job timelines with staff-written progress updates for print, document and T-shirt jobs
 - Plain-text document editor with a paper-like workspace, editing controls and Word (.docx) export
 - Optional WhatsApp completion messages, sent only with explicit customer consent
 - Loyalty discounts based on completed visits
@@ -18,6 +18,7 @@ A runnable full-stack starter for a stationery, document-processing, printing an
 - Multi-line quotations, order totals and printable receipts
 - Cash, mobile-money, card and bank-transfer payment recording (manual bookkeeping only)
 - Product inventory and stock movements
+- Shop machine register for administrators and staff
 - Low-stock indicators and inventory alerts
 - Expense recording and daily/monthly cash summaries
 - Document upload and editable job workflow
@@ -35,16 +36,20 @@ A runnable full-stack starter for a stationery, document-processing, printing an
 ## Run locally (Windows PowerShell)
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 Copy-Item .env.example .env
-python -m app.create_admin
-python -m uvicorn app.main:app --reload
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
 ```
 Open http://127.0.0.1:8000/login. Customer registration is at `/register`; after signing in, the dashboard is at `/dashboard`.
 
-The app creates `printbiz.db` automatically and seeds example services/products on first run.
-Set a long, random `SESSION_SECRET` in `.env` before using persistent sessions. `SESSION_COOKIE_SECURE=false` is for local HTTP only; set it to `true` behind HTTPS. The first administrator is created interactively with `python -m app.create_admin`; admins can then create staff accounts. Customers can self-register from the sign-in page.
+The app creates `printbiz.db` automatically and seeds example services/products on first run. On a fresh local database, it also creates this starter administrator:
+
+- Email: `admin@smartprint.local`
+- Password: `Admin123!ChangeMe`
+
+This starter account is created only when using the default local database, secure cookies are disabled, and no administrator exists. It does not change existing accounts or apply to deployment databases. The password is a public local-development default; do not use it on a public deployment.
+
+Set a long, random `SESSION_SECRET` in `.env` before using persistent sessions. `SESSION_COOKIE_SECURE=false` is for local HTTP only; set it to `true` behind HTTPS. Admins can create staff accounts. Customers can self-register from the sign-in page.
 
 To reset the administrator password or change the admin login email locally, activate the project's virtual environment and run:
 
@@ -67,6 +72,7 @@ If the Render plan does not include Shell access, use the one-time web recovery 
 The recovery page and endpoint are disabled unless a token of at least 32 bytes is configured. Do not share the token or password. If this deployed service has no existing administrator account, this recovery flow cannot create one.
 
 Administrators can update service unit prices in **Services & pricing**, and product cost/selling prices in **Inventory**. T-shirt prices are quoted per customer order.
+Administrators can add shop machines in **Machines**; staff can view the register. Staff and administrators can post customer-visible progress notes from the print, document and T-shirt job lists.
 
 ## Optional AI setup
 Set `OPENAI_API_KEY` privately in `.env` for local development or in the Render service Environment settings. The Render Blueprint prompts for this secret and uses `OPENAI_MODEL` (`gpt-4.1-mini` by default). Never commit the key or put it in frontend JavaScript.
@@ -89,11 +95,12 @@ On Render, set the three credentials/version variables in the service's Environm
 The project is prepared as a Render Blueprint in `render.yaml`. Before deploying:
 
 1. Push the project to a GitHub repository. Keep `.env`, the local database, and uploaded files out of Git; `.gitignore` excludes them.
-2. In Render, select **New → Blueprint**, connect the repository, and apply the `printbiz-ai` service from `render.yaml`.
+2. In Render, select **New → Blueprint**, connect the repository, and apply the `stationary-hub` service from `render.yaml`.
 3. The Blueprint pins Python to the tested version in `.python-version`, runs `pip install -r requirements.txt`, starts Uvicorn on Render's `$PORT`, and checks `/api/health`.
 4. The service uses a Starter web plan and a persistent disk mounted at `/var/data`. SQLite and uploaded files are stored there. Keep this service to one instance; multiple instances must not share this SQLite database.
 5. In the Render service's **Environment** settings, add `OPENAI_API_KEY` if you want live AI. Add the WhatsApp Cloud API variables only if you have the Meta phone number, approved template, and customer consent configured. Secrets are not stored in the Blueprint or repository. The app starts without optional integrations, but those features will report unavailable until configured.
-6. Wait for the first deploy to finish. In the service Shell, run `python -m app.create_admin` and follow the prompts to create the first administrator. Then sign in at `/login`; customers can register at `/register`, and administrators create staff accounts.
+6. During Blueprint setup, provide `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` in Render's private Environment prompts. The app creates the admin only when the database has no administrator; the password is stored as a hash. The password must be at least 12 characters and no more than 72 UTF-8 bytes. These values are not stored in the repository. You can enter the same credentials as local, but the local default password is public in the source and is unsafe for an internet-facing service; use a unique private password instead.
+7. After the first deploy succeeds, open your Render service URL followed by `/login` and sign in with the credentials you entered in Render. Then remove `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` from Render's Environment settings; removing them will not change the stored account. If you prefer Shell setup, run `python -m app.create_admin` instead. Customers can register at `/register`; administrators can create staff accounts.
 
 The Blueprint generates `SESSION_SECRET` and enables secure cookies for HTTPS. Configure backups for `/var/data`; persistent disks are not a substitute for backups. Check the service's `/api/health` endpoint after deploy and verify sign-in, customer registration, and a test job before using real customer data.
 

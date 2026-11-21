@@ -46,6 +46,19 @@ class Product(Base):
     selling_price: Mapped[float] = mapped_column(Float, default=0)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
+class Machine(Base):
+    __tablename__ = "machines"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(160))
+    model: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    serial_number: Mapped[str | None] = mapped_column(
+        String(120), unique=True, nullable=True, index=True
+    )
+    location: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    status: Mapped[str] = mapped_column(String(30), default="in_service")
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
 class Order(Base):
     __tablename__ = "orders"
     id: Mapped[int] = mapped_column(primary_key=True)

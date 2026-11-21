@@ -4,16 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#111827">
-<title>PrintBiz AI | Business workspace</title>
+<title>Stationary Hub | Business workspace</title>
 <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <div class="app-shell">
   <aside class="sidebar">
-    <a class="brand" href="#overview" aria-label="PrintBiz AI home">
-      <span class="brand-mark">P</span>
-      <span><strong>PRINTBIZ<span class="brand-accent"> AI</span></strong><small>BUSINESS WORKSPACE</small></span>
+    <a class="brand" href="#overview" aria-label="Stationary Hub home">
+      <span class="brand-mark">S</span>
+      <span><strong>STATIONARY<span class="brand-accent"> HUB</span></strong><small>BUSINESS WORKSPACE</small></span>
     </a>
     <div class="nav-label">WORKSPACE</div>
     <nav class="navigation" aria-label="Main navigation">
@@ -24,21 +24,22 @@
       <button class="nav-link" data-view="shirts" data-roles="admin staff"><span class="nav-icon">▣</span> T-shirt production</button>
       <button class="nav-link" data-view="catalogue" data-roles="admin"><span class="nav-icon">▦</span> Services & pricing</button>
       <button class="nav-link" data-view="inventory" data-roles="admin staff"><span class="nav-icon">▥</span> Inventory</button>
+      <button class="nav-link" data-view="machines" data-roles="admin staff"><span class="nav-icon">▤</span> Machines</button>
       <button class="nav-link" data-view="finance" data-roles="admin"><span class="nav-icon">◷</span> Expenses & reports</button>
       <button class="nav-link" data-view="activity" data-roles="admin"><span class="nav-icon">☷</span> Activity log</button>
       <button class="nav-link" data-view="admin-users" data-roles="admin"><span class="nav-icon">♧</span> Staff accounts</button>
       <button class="nav-link" data-view="customer" data-roles="customer"><span class="nav-icon">♙</span> Customer portal</button>
     </nav>
     <div class="sidebar-bottom">
-      <div class="shop-avatar">PB</div>
-      <div><strong id="signedInName">Print shop</strong><small id="signedInRole">Local workspace</small></div>
+      <div class="shop-avatar">SH</div>
+      <div><strong id="signedInName">Stationary Hub</strong><small id="signedInRole">Local workspace</small></div>
       <span class="online-dot" title="Application available"></span>
     </div>
   </aside>
 
   <main class="main-content">
     <header class="topbar">
-      <div class="mobile-brand"><span class="brand-mark">P</span><strong>PRINTBIZ<span class="brand-accent"> AI</span></strong></div>
+      <div class="mobile-brand"><span class="brand-mark">S</span><strong>STATIONARY<span class="brand-accent"> HUB</span></strong></div>
       <div class="breadcrumb"><span>Workspace</span><b>/</b><strong id="pageTitle">Overview</strong></div>
       <div class="topbar-actions">
         <span class="system-status"><i></i> Workspace online</span>
@@ -233,6 +234,31 @@
         </div>
       </section>
 
+      <section class="view" id="view-machines" data-roles="admin staff">
+        <div class="page-heading"><div><div class="eyebrow">SHOP EQUIPMENT</div><h1>Machines</h1><p>Keep a register of the machines in your shop and their service status.</p></div></div>
+        <div class="content-grid">
+          <section class="card" data-roles="admin">
+            <div class="card-heading"><div><div class="eyebrow">EQUIPMENT REGISTER</div><h2>Add a machine</h2></div></div>
+            <form id="machineForm" class="form-stack">
+              <label>Machine name<input name="name" minlength="2" maxlength="160" required placeholder="e.g. Colour laser printer"></label>
+              <label>Make / model <span class="optional">(optional)</span><input name="model" maxlength="120" placeholder="e.g. HP LaserJet Pro"></label>
+              <div class="two-col">
+                <label>Serial number <span class="optional">(optional)</span><input name="serial_number" maxlength="120"></label>
+                <label>Location <span class="optional">(optional)</span><input name="location" maxlength="160" placeholder="e.g. Front counter"></label>
+              </div>
+              <label>Service status<select name="status"><option value="in_service">In service</option><option value="maintenance">Needs maintenance</option><option value="out_of_service">Out of service</option></select></label>
+              <label>Notes <span class="optional">(optional)</span><textarea name="notes" maxlength="500" rows="3" placeholder="Condition, purchase details or other notes"></textarea></label>
+              <button class="button button-primary">Add machine</button>
+              <div id="machineMsg" class="form-message" aria-live="polite"></div>
+            </form>
+          </section>
+          <section class="card span-two">
+            <div class="card-heading"><div><div class="eyebrow">SHOP EQUIPMENT</div><h2>Machines in the shop</h2></div><button class="button button-quiet" id="refreshMachines">Refresh</button></div>
+            <div class="table-wrap" id="machinesTable"></div>
+          </section>
+        </div>
+      </section>
+
       <section class="view" id="view-finance">
         <div class="page-heading"><div><div class="eyebrow">CASH FLOW</div><h1>Expenses & reports</h1><p>Record operating expenses and review daily and monthly cash activity.</p></div></div>
         <div class="content-grid">
@@ -287,7 +313,7 @@
       </section>
 
       <section class="view" id="view-customer">
-        <div class="page-heading"><div><div class="eyebrow">CUSTOMER SELF-SERVICE</div><h1 id="portalGreeting">Your PrintBiz portal</h1><p>Request print work, submit files and keep track of your orders.</p></div></div>
+        <div class="page-heading"><div><div class="eyebrow">CUSTOMER SELF-SERVICE</div><h1 id="portalGreeting">Your Stationary Hub portal</h1><p>Request print work, submit files and keep track of your orders.</p></div></div>
         <div class="portal-welcome card">
           <div class="portal-monogram" id="portalMonogram">PB</div>
           <div class="portal-profile"><strong id="portalName">Customer</strong><small id="portalEmail"></small></div>
@@ -345,7 +371,7 @@
         </div>
       </section>
 
-      <footer class="app-footer"><span>PrintBiz AI</span> · Business operations workspace <span class="footer-divider">|</span> Protect customer data and configure integrations before public deployment.</footer>
+      <footer class="app-footer"><span>Stationary Hub</span> · Business operations workspace <span class="footer-divider">|</span> Protect customer data and configure integrations before public deployment.</footer>
     </div>
   </main>
 </div>
@@ -371,6 +397,17 @@
   <div class="eyebrow">JOB ACTIVITY</div>
   <h2 id="jobHistoryTitle">Job progress</h2>
   <div class="job-update-list" id="jobHistoryList"></div>
+</dialog>
+<dialog id="progressUpdateDialog" class="modal job-history-dialog">
+  <form method="dialog" class="modal-close"><button class="icon-button" aria-label="Close">×</button></form>
+  <div class="eyebrow">CUSTOMER UPDATE</div>
+  <h2 id="progressUpdateTitle">Share work progress</h2>
+  <p class="soft-note">This message will appear in the customer portal job timeline.</p>
+  <form id="progressUpdateForm" class="form-stack">
+    <label>Update<textarea id="progressUpdateMessage" name="message" minlength="3" maxlength="500" rows="4" required placeholder="Tell the customer what has been done and what happens next."></textarea></label>
+    <div id="progressUpdateMsg" class="form-message" aria-live="polite"></div>
+    <button class="button button-primary">Send customer update</button>
+  </form>
 </dialog>
 <dialog id="documentEditorDialog" class="document-editor-dialog">
   <form method="dialog" class="modal-close"><button class="icon-button" aria-label="Close">×</button></form>

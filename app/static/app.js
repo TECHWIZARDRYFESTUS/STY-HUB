@@ -6,6 +6,7 @@ const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, char => ({
 const dateTime = value => value ? new Date(`${value}Z`).toLocaleString() : "—";
 const formatDate = value => value ? new Date(`${value}Z`).toLocaleDateString() : "—";
 const state = { customers: [], orders: [], products: [], services: [], user: null, documentId: null, aiAvailable: null };
+let progressTarget = null;
 let toastTimer;
 let editorUndo = [];
 let editorRedo = [];
@@ -81,6 +82,16 @@ async function showJobHistory(type, id) {
   }
 }
 
+function openProgressUpdate(type, id) {
+  progressTarget = { type, id };
+  const jobNames = { print: "Print job", document: "Document job", tshirt: "T-shirt order" };
+  $("#progressUpdateTitle").textContent = `${jobNames[type]} #${id} · customer update`;
+  $("#progressUpdateForm").reset();
+  showMessage("#progressUpdateMsg", "");
+  $("#progressUpdateDialog").showModal();
+  $("#progressUpdateMessage").focus();
+}
+
 function documentNextAction(job) {
   if (["uploaded", "text_extracted", "edited"].includes(job.status)) {
     return `<button class="table-action work-action" data-document-next="in_progress" data-document-id="${job.id}">Start processing</button>`;
@@ -128,7 +139,11 @@ function switchView(name) {
   document.querySelectorAll(".nav-link").forEach(button => button.classList.toggle("active", button.dataset.view === name));
   const active = document.querySelector(`.nav-link[data-view="${name}"]`);
   $("#pageTitle").textContent = active ? active.textContent.trim() : "Overview";
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  if (window.matchMedia("(max-width: 620px)").matches) {
+    window.scrollTo({ top: 0, behavior: "auto" });
+  } else {
+    $(".main-content").scrollTo({ top: 0, behavior: "auto" });
+  }
 }
 
 async function enterWorkspace(user) {
@@ -278,6 +293,7 @@ function renderOrders() {
       <td>${order.has_attachment ? `<a class="table-action" href="/api/orders/${order.id}/attachment">Download</a>` : "—"}</td>
       <td>${dateTime(order.created_at)}</td>
       <td class="action-cell"><button class="table-action" data-job-history="print" data-job-id="${order.id}">Progress</button>
+      <button class="table-action" data-send-progress="print" data-job-id="${order.id}">Update customer</button>
       ${Number(order.total) > Number(order.paid) ? `<button class="table-action" data-pay="${order.id}">Payment</button>` : ""}
       <button class="table-action" data-receipt="${order.id}">Receipt</button></td>
     </tr>`),
@@ -312,6 +328,27 @@ async function loadProducts() {
     : `<div class="empty-state compact-empty">All products are above their reorder levels.</div>`;
 }
 
+async function loadMachines() {
+  const machines = await api("/api/machines");
+  const statusLabels = {
+    in_service: "In service",
+    maintenance: "Needs maintenance",
+    out_of_service: "Out of service"
+  };
+  $("#machinesTable").innerHTML = tableMarkup(
+    ["Machine", "Make / model", "Serial number", "Location", "Status", "Notes"],
+    machines.map(machine => `<tr>
+      <td><strong>${escapeHtml(machine.name)}</strong></td>
+      <td>${escapeHtml(machine.model || "—")}</td>
+      <td>${escapeHtml(machine.serial_number || "—")}</td>
+      <td>${escapeHtml(machine.location || "—")}</td>
+      <td><span class="status-pill status-${escapeHtml(machine.status)}">${statusLabels[machine.status] || escapeHtml(machine.status)}</span></td>
+      <td>${escapeHtml(machine.notes || "—")}</td>
+    </tr>`),
+    "No machines have been added yet."
+  );
+}
+
 async function loadServices() {
   state.services = await api("/api/services");
   $("#servicesTable").innerHTML = tableMarkup(
@@ -336,6 +373,7 @@ async function loadDocuments() {
       <td>${escapeHtml(job.job_type)}</td><td><span class="status-pill status-${escapeHtml(job.status)}">${escapeHtml(job.status.replaceAll("_", " "))}</span></td>
       <td>${formatDate(job.created_at)}</td><td class="action-cell">
       <button class="table-action" data-job-history="document" data-job-id="${job.id}">Progress</button>
+      <button class="table-action" data-send-progress="document" data-job-id="${job.id}">Update customer</button>
       ${job.has_original_file ? `<a class="table-action" href="/api/documents/${job.id}/original">Original</a>` : ""}
       <button class="table-action" data-open-editor="${job.id}">Open editor</button>
       ${documentNextAction(job)}
@@ -368,6 +406,7 @@ async function loadShirts() {
       <td>${money(order.unit_price)}</td><td>${order.has_design ? `<a class="table-action" href="/api/tshirts/${order.id}/design">Download</a>` : "Not received"}</td>
       <td><span class="status-pill status-${escapeHtml(order.status)}">${escapeHtml(order.status.replaceAll("_", " "))}</span></td><td>${formatDate(order.created_at)}</td>
       <td><button class="table-action" data-job-history="tshirt" data-job-id="${order.id}">Progress</button>
+      <button class="table-action" data-send-progress="tshirt" data-job-id="${order.id}">Update customer</button>
       ${state.user?.role === "customer" ? "" : shirtWorkAction(order)}</td>
     </tr>`),
     "No T-shirt production orders have been created."
@@ -607,7 +646,7 @@ async function printReceipt(orderId) {
     const lineRows = detail.items.map(item => `<tr><td>${escapeHtml(item.description)}</td><td>${item.quantity}</td><td>${money(item.unit_price)}</td><td>${money(item.line_total)}</td></tr>`).join("");
     printWindow.document.write(`<!doctype html><html><head><title>Receipt #${order.id}</title><style>
       body{font:14px Arial,sans-serif;color:#172033;max-width:680px;margin:40px auto;padding:0 20px}header{border-bottom:2px solid #222;padding-bottom:16px;margin-bottom:20px}h1{font-size:22px;margin:0 0 6px}p{margin:5px 0;color:#586174}table{width:100%;border-collapse:collapse;margin:22px 0}th,td{text-align:left;padding:10px 6px;border-bottom:1px solid #ddd}th:last-child,td:last-child{text-align:right}.totals{margin-left:auto;width:260px}.totals div{display:flex;justify-content:space-between;padding:6px}.grand{border-top:2px solid #222;font-weight:bold;font-size:17px}.thanks{text-align:center;margin-top:35px}</style></head><body>
-      <header><h1>${escapeHtml("PrintBiz AI")}</h1><p>Payment receipt · Order #${order.id}</p></header>
+      <header><h1>${escapeHtml("Stationary Hub")}</h1><p>Payment receipt · Order #${order.id}</p></header>
       <p><strong>Customer:</strong> ${escapeHtml(customer?.name || `Customer #${order.customer_id}`)}</p><p><strong>Date:</strong> ${escapeHtml(dateTime(order.created_at))}</p>
       <table><thead><tr><th>Description</th><th>Qty</th><th>Unit price</th><th>Amount</th></tr></thead><tbody>${lineRows}</tbody></table>
       <div class="totals"><div><span>Subtotal</span><strong>${money(order.subtotal)}</strong></div><div><span>Discount</span><strong>−${money(order.discount)}</strong></div><div class="grand"><span>Total</span><strong>${money(order.total)}</strong></div><div><span>Paid</span><strong>${money(order.paid)}</strong></div><div><span>Balance</span><strong>${money(detail.balance)}</strong></div></div>
@@ -774,6 +813,61 @@ $("#productForm").addEventListener("submit", async event => {
   } catch (error) {
     showMessage("#productMsg", error.message, true);
   }
+});
+
+$("#machineForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const values = Object.fromEntries(new FormData(form));
+  ["name", "model", "serial_number", "location", "notes"].forEach(key => {
+    values[key] = String(values[key] || "").trim() || null;
+  });
+  try {
+    await api("/api/machines", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(values)
+    });
+    form.reset();
+    showMessage("#machineMsg", "Machine added to the shop register.");
+    await loadMachines();
+  } catch (error) {
+    showMessage("#machineMsg", error.message, true);
+  }
+});
+
+$("#progressUpdateForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  if (!progressTarget) return;
+  const target = progressTarget;
+  const message = $("#progressUpdateMessage").value.trim();
+  if (message.length < 3) {
+    showMessage("#progressUpdateMsg", "Write at least 3 characters.", true);
+    return;
+  }
+  const button = event.currentTarget.querySelector('button[type="submit"], button:not([type])');
+  if (button) button.disabled = true;
+  try {
+    await api("/api/job-updates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ job_type: target.type, job_id: target.id, message })
+    });
+    $("#progressUpdateDialog").close();
+    notify("Customer progress update saved.");
+    await showJobHistory(target.type, target.id);
+  } catch (error) {
+    showMessage("#progressUpdateMsg", error.message, true);
+  } finally {
+    if (button) button.disabled = false;
+  }
+});
+
+$("#progressUpdateDialog").addEventListener("close", () => { progressTarget = null; });
+
+document.addEventListener("click", event => {
+  const button = event.target.closest("[data-send-progress]");
+  if (button) openProgressUpdate(button.dataset.sendProgress, Number(button.dataset.jobId));
 });
 
 $("#productsTable").addEventListener("click", async event => {
@@ -1168,6 +1262,7 @@ $("#customerSearch").value = "";
 $("#refreshAll").addEventListener("click", refreshAll);
 $("#refreshOrders").addEventListener("click", () => loadOrders().catch(error => notify(error.message, true)));
 $("#refreshProducts").addEventListener("click", () => loadProducts().catch(error => notify(error.message, true)));
+$("#refreshMachines").addEventListener("click", () => loadMachines().catch(error => notify(error.message, true)));
 $("#refreshServices").addEventListener("click", () => loadServices().catch(error => notify(error.message, true)));
 $("#refreshDocuments").addEventListener("click", () => loadDocuments().catch(error => notify(error.message, true)));
 $("#refreshShirts").addEventListener("click", () => loadShirts().catch(error => notify(error.message, true)));
@@ -1205,7 +1300,7 @@ async function refreshAll() {
     await loadCustomerPortal();
     return;
   }
-  const common = [loadDashboard(), loadCustomers(), loadOrders(), loadProducts(), loadServices(), loadDocuments(), loadShirts(), loadAIStatus()];
+  const common = [loadDashboard(), loadCustomers(), loadOrders(), loadProducts(), loadMachines(), loadServices(), loadDocuments(), loadShirts(), loadAIStatus()];
   if (state.user?.role === "admin") {
     common.push(loadExpenses(), loadDailyReport(), loadAudit(), loadAdminUsers());
     const now = new Date();

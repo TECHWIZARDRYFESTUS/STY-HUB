@@ -27,6 +27,9 @@ from .auth import create_session_token, hash_password, password_fingerprint, rea
 from .config import (
     BUSINESS_NAME,
     CURRENCY,
+    DATABASE_URL,
+    INITIAL_ADMIN_EMAIL,
+    INITIAL_ADMIN_PASSWORD,
     OPENAI_MODEL,
     UPLOAD_DIR,
     SESSION_COOKIE_SECURE,
@@ -68,6 +71,18 @@ def user_payload(user: models.User) -> dict:
         "email": user.email,
         "role": user.role,
         "customer_id": user.customer_id,
+    }
+
+def machine_payload(machine: models.Machine) -> dict:
+    return {
+        "id": machine.id,
+        "name": machine.name,
+        "model": machine.model,
+        "serial_number": machine.serial_number,
+        "location": machine.location,
+        "status": machine.status,
+        "notes": machine.notes,
+        "created_at": machine.created_at,
     }
 
 def get_current_user(request: Request, db: Session=Depends(get_db)) -> models.User:
@@ -179,6 +194,45 @@ async def store_upload(
     return path
 
 def seed(db):
+    if not db.query(models.User).filter_by(role="admin").first():
+        if INITIAL_ADMIN_EMAIL or INITIAL_ADMIN_PASSWORD:
+            admin_email = INITIAL_ADMIN_EMAIL.strip().lower()
+            if not admin_email or not INITIAL_ADMIN_PASSWORD:
+                raise RuntimeError(
+                    "Set both INITIAL_ADMIN_EMAIL and INITIAL_ADMIN_PASSWORD to bootstrap the first administrator."
+                )
+            if (
+                "@" not in admin_email
+                or len(admin_email) > 160
+                or any(char.isspace() for char in admin_email)
+            ):
+                raise RuntimeError("INITIAL_ADMIN_EMAIL must be a valid email address.")
+            if len(INITIAL_ADMIN_PASSWORD) < 12:
+                raise RuntimeError("INITIAL_ADMIN_PASSWORD must contain at least 12 characters.")
+            if len(INITIAL_ADMIN_PASSWORD.encode("utf-8")) > 72:
+                raise RuntimeError(
+                    "INITIAL_ADMIN_PASSWORD must contain no more than 72 UTF-8 bytes for bcrypt."
+                )
+            if db.query(models.User).filter_by(email=admin_email).first():
+                raise RuntimeError("INITIAL_ADMIN_EMAIL is already used by another account.")
+            db.add(models.User(
+                name="Administrator",
+                email=admin_email,
+                password_hash=hash_password(INITIAL_ADMIN_PASSWORD),
+                role="admin",
+                active=True,
+            ))
+        elif (
+            DATABASE_URL == "sqlite:///./printbiz.db"
+            and not SESSION_COOKIE_SECURE
+        ):
+            db.add(models.User(
+                name="Administrator",
+                email="admin@smartprint.local",
+                password_hash=hash_password("Admin123!ChangeMe"),
+                role="admin",
+                active=True,
+            ))
     if db.query(models.Service).count() == 0:
         defaults = [
             ("B&W printing","Printing","page",1.00),
@@ -491,6 +545,45 @@ def adjust_stock(product_id:int, quantity:int=Form(...), db:Session=Depends(get_
     audit(db,"inventory.adjusted",f"product={product_id}, change={quantity}")
     return {"product_id":p.id,"quantity":p.quantity}
 
+@app.get("/api/machines")
+def list_machines(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_roles("admin", "staff")),
+):
+    machines = db.query(models.Machine).order_by(models.Machine.name).all()
+    return [machine_payload(machine) for machine in machines]
+
+@app.post("/api/machines")
+def add_machine(
+    data: schemas.MachineIn,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_roles("admin")),
+):
+    machine_name = data.name.strip()
+    if len(machine_name) < 2:
+        raise HTTPException(422, "Machine name must contain at least 2 characters.")
+    serial_number = data.serial_number.strip() if data.serial_number else None
+    serial_number = serial_number or None
+    if serial_number and db.query(models.Machine).filter_by(serial_number=serial_number).first():
+        raise HTTPException(409, "A machine with this serial number already exists.")
+    machine = models.Machine(
+        name=machine_name,
+        model=data.model.strip() if data.model and data.model.strip() else None,
+        serial_number=serial_number,
+        location=data.location.strip() if data.location and data.location.strip() else None,
+        status=data.status,
+        notes=data.notes.strip() if data.notes and data.notes.strip() else None,
+    )
+    db.add(machine)
+    try:
+        db.commit()
+    except IntegrityError as error:
+        db.rollback()
+        raise HTTPException(409, "A machine with this serial number already exists.") from error
+    db.refresh(machine)
+    audit(db, "machine.created", f"machine_id={machine.id}")
+    return machine_payload(machine)
+
 def save_order(customer: models.Customer, items: list[schemas.OrderLineIn], notes: str | None, db: Session):
     if not items: raise HTTPException(400,"At least one order item is required")
     subtotal=money(sum(item.quantity*item.unit_price for item in items))
@@ -538,7 +631,7 @@ def update_order_production_status(
     status_messages = {
         "in_progress": "Work has started on your print job.",
         "ready": "Your print job is ready for collection.",
-        "completed": "Your print job is complete. Thank you for choosing PrintBiz AI.",
+        "completed": "Your print job is complete. Thank you for choosing Stationary Hub.",
     }
     update = add_job_update(
         db, "print", order.id, order.customer_id, data.status,
@@ -614,6 +707,37 @@ def list_job_updates(
         job_type=job_type, job_id=job_id, customer_id=job.customer_id
     ).order_by(models.JobUpdate.created_at, models.JobUpdate.id).all()
     return [job_update_payload(update, user.role != "customer") for update in updates]
+
+@app.post("/api/job-updates")
+def create_job_progress_update(
+    data: schemas.JobProgressUpdateIn,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_roles("admin", "staff")),
+):
+    models_by_type = {
+        "print": models.Order,
+        "document": models.DocumentJob,
+        "tshirt": models.TshirtOrder,
+    }
+    job = db.get(models_by_type[data.job_type], data.job_id)
+    if not job:
+        raise HTTPException(404, "Job not found.")
+    message = data.message.strip()
+    if len(message) < 3:
+        raise HTTPException(422, "Progress update must contain at least 3 characters.")
+    update = add_job_update(
+        db,
+        data.job_type,
+        data.job_id,
+        job.customer_id,
+        "progress_update",
+        message,
+        user.id,
+    )
+    db.commit()
+    db.refresh(update)
+    audit(db, "job.progress_updated", f"job_type={data.job_type}, job_id={data.job_id}")
+    return job_update_payload(update)
 
 @app.get("/api/notifications")
 def customer_notifications(
@@ -869,7 +993,7 @@ def update_document_status(
     messages = {
         "in_progress": "Staff started processing your document.",
         "ready": "Your document is ready for review or collection.",
-        "completed": "Your document job is complete. Thank you for choosing PrintBiz AI.",
+        "completed": "Your document job is complete. Thank you for choosing Stationary Hub.",
     }
     update = add_job_update(
         db, "document", job.id, job.customer_id, job.status,
@@ -1156,7 +1280,7 @@ def update_tshirt_production_status(
     status_messages = {
         "in_production": "Production has started on your T-shirt order.",
         "ready": "Your T-shirt order is ready for collection.",
-        "completed": "Your T-shirt order is complete. Thank you for choosing PrintBiz AI.",
+        "completed": "Your T-shirt order is complete. Thank you for choosing Stationary Hub.",
     }
     update = add_job_update(
         db, "tshirt", order.id, order.customer_id, data.status,

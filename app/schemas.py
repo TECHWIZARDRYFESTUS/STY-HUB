@@ -42,6 +42,14 @@ class ProductPriceIn(BaseModel):
     cost_price: float = Field(ge=0)
     selling_price: float = Field(ge=0)
 
+class MachineIn(BaseModel):
+    name: str = Field(min_length=2, max_length=160)
+    model: str | None = Field(default=None, max_length=120)
+    serial_number: str | None = Field(default=None, max_length=120)
+    location: str | None = Field(default=None, max_length=160)
+    status: Literal["in_service", "maintenance", "out_of_service"] = "in_service"
+    notes: str | None = Field(default=None, max_length=500)
+
 class OrderLineIn(BaseModel):
     description: str
     quantity: float = Field(gt=0)
@@ -124,6 +132,11 @@ class AdminRecoveryIn(BaseModel):
 
 class UserActiveIn(BaseModel):
     active: bool
+
+class JobProgressUpdateIn(BaseModel):
+    job_type: Literal["print", "document", "tshirt"]
+    job_id: int = Field(gt=0)
+    message: str = Field(min_length=3, max_length=500)
 
 class PortalOrderLineIn(BaseModel):
     service_id: int

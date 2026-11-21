@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 load_dotenv()
-BUSINESS_NAME = os.getenv("BUSINESS_NAME", "PrintBiz AI")
+BUSINESS_NAME = os.getenv("BUSINESS_NAME", "Stationary Hub")
 CURRENCY = os.getenv("CURRENCY", "ZMW")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
@@ -9,6 +9,8 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./printbiz.db")
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "uploads")
 SESSION_SECRET = os.getenv("SESSION_SECRET", "")
 ADMIN_RESET_TOKEN = os.getenv("ADMIN_RESET_TOKEN", "")
+INITIAL_ADMIN_EMAIL = os.getenv("INITIAL_ADMIN_EMAIL", "").strip()
+INITIAL_ADMIN_PASSWORD = os.getenv("INITIAL_ADMIN_PASSWORD", "")
 SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true"
 SESSION_TTL_SECONDS = int(os.getenv("SESSION_TTL_SECONDS", "28800"))
 WHATSAPP_ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
